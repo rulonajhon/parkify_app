@@ -2,43 +2,119 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../Provider/parking_provider.dart' as provider;
 
-class Dashboard extends StatelessWidget {
+class Dashboard extends StatefulWidget {
+  @override
+  _DashboardState createState() => _DashboardState();
+}
+
+class _DashboardState extends State<Dashboard> {
+  TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+  bool _isSearchVisible = false; // Controls the visibility of the search bar
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController.addListener(() {
+      setState(() {
+        _searchQuery = _searchController.text.toLowerCase();
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Row(
-          children: [
-            Text('Dashboard'), // Title of the app
-          ],
-        ),
-        backgroundColor: Color(0xFF789DBC), // Set the AppBar background color
+        title: Text('Dashboard'), // Title without the logo
+        backgroundColor: Color(0xFF789DBC),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.search),
+            onPressed: () {
+              setState(() {
+                _isSearchVisible =
+                    !_isSearchVisible; // Toggle search visibility
+              });
+            },
+          ),
+        ],
       ),
       body: Padding(
-        padding: const EdgeInsets.all(16.0), // Add padding around the body
+        padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
+            // Show search bar only when _isSearchVisible is true
+            if (_isSearchVisible)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16.0),
+                child: TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    labelText: 'Search by Driver Name or License Plate',
+                    prefixIcon: Icon(Icons.search),
+                    suffixIcon: IconButton(
+                      icon: Icon(Icons.clear),
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() {
+                          _isSearchVisible =
+                              false; // Hide the search bar when 'X' is clicked
+                        });
+                      },
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+              ),
+
+            // Use Expanded to make ListView take the remaining space
             Expanded(
-              // Use Expanded to make ListView take remaining space
               child: Consumer<provider.ParkingProvider>(
                 builder: (context, provider, child) {
-                  // Get all records
-                  final records = provider.records;
+                  // Get all records and filter them based on the search query
+                  final filteredRecords = provider.records.where((record) {
+                    final driverName = record.vehicle.driverName.toLowerCase();
+                    final licensePlate =
+                        record.vehicle.licensePlate.toLowerCase();
+                    return driverName.contains(_searchQuery) ||
+                        licensePlate.contains(_searchQuery);
+                  }).toList();
 
                   // Sort records: unpaid first, paid last
-                  records.sort((a, b) {
-                    if (a.isPaid && !b.isPaid) {
-                      return 1; // Move paid record to the bottom
-                    } else if (!a.isPaid && b.isPaid) {
-                      return -1; // Keep unpaid record at the top
-                    }
-                    return 0; // Keep original order if both are paid or unpaid
+                  filteredRecords.sort((a, b) {
+                    if (a.isPaid && !b.isPaid) return 1;
+                    if (!a.isPaid && b.isPaid) return -1;
+                    return 0;
                   });
 
+                  // If no records are found, show a message
+                  if (filteredRecords.isEmpty) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Text(
+                          'No vehicles found.',
+                          style: TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    );
+                  }
+
+                  // Return the list of filtered vehicles
                   return ListView.builder(
-                    itemCount: records.length,
+                    itemCount: filteredRecords.length,
                     itemBuilder: (context, index) {
-                      final record = records[index];
+                      final record = filteredRecords[index];
                       return ListTile(
                         title: Text(
                           '${record.vehicle.type.toUpperCase()} - ${record.vehicle.licensePlate}',
